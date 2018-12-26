@@ -12,7 +12,7 @@
 
 #include <Wire.h>
 
-bool goClubMode = false;
+bool goClub = false;
 
 struct Roof {
   int red;
@@ -52,8 +52,26 @@ void setup() {
   pinMode(roofBluePin, OUTPUT);
 }
 
-void loop() {
-if (received > 0) {
+void printState(){
+    Serial.print(mode);
+    Serial.print(" ");
+    Serial.print(roof.red);
+    Serial.print(" ");
+    Serial.print(roof.green);
+    Serial.print(" ");
+    Serial.print(roof.blue);
+    Serial.print(" ");
+    Serial.print(roof.brightness);
+    Serial.print(" ");
+    Serial.print(roof.anim);
+    Serial.print(" ");
+    Serial.print(wg);
+    Serial.print(" ");
+    Serial.print(wb);
+    Serial.println("");
+}
+
+void setStateToVars() {
     memcpy(printable, buffer, maxlength);
     mode = printable[0];
     roof.red = printable[1];
@@ -63,21 +81,35 @@ if (received > 0) {
     roof.anim = printable[5];
     wg = printable[6];
     wb = printable[7];
-
-    Serial.println(mode);
-    Serial.println(roof.red);
-    Serial.println(roof.green);
-    Serial.println(roof.blue);
-    Serial.println(roof.brightness);
-    Serial.println(roof.anim);
-    Serial.println(wg);
-    Serial.println(wb);
-    Serial.println("");
-    received = 0;
-  }
 }
 
-void writeToStrips(int wg, int wb, struct Roof roof) {
+void setMode() {
+    if (mode == 2) goClub = true;
+    if (mode != 2) goClub = false;
+    if (mode == 1) {
+      writeToStrips();
+    }
+}
+
+void loop() {
+  
+  if (received > 0) {
+      setStateToVars();
+      //printState();
+      setMode();
+      received = 0;
+  }
+
+  if (goClub) {
+    Serial.print("party ");
+  }
+
+  
+}
+
+void writeToStrips() {
+  Serial.println("writing to strips");
+  printState();
   analogWrite(wgPin, wg);
   analogWrite(wbPin, wb);
   /// change to rgb lib
