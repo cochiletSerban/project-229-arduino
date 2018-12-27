@@ -54,21 +54,21 @@ void setup() {
 
 void printState(){
     Serial.print(mode);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(roof.red);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(roof.green);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(roof.blue);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(roof.brightness);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(roof.anim);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(wg);
-    Serial.print(" ");
+    Serial.print(F(" "));
     Serial.print(wb);
-    Serial.println("");
+    Serial.println(F(" "));
 }
 
 void setStateToVars() {
@@ -93,22 +93,20 @@ void setMode() {
 
 void loop() {
   
-  if (received > 0) {
+  if (received) {
       setStateToVars();
       //printState();
       setMode();
       received = 0;
   }
 
-  if (goClub) {
-    Serial.print("party ");
-  }
+  if (goClub) Serial.print(F("party "));
 
   
 }
 
 void writeToStrips() {
-  Serial.println("writing to strips");
+  Serial.println(F("writing to strips"));
   printState();
   analogWrite(wgPin, wg);
   analogWrite(wbPin, wb);
@@ -124,7 +122,5 @@ void receiveEvent(int howMany) {
   received = howMany;
   memset(buffer, 0, maxlength);
 
-  for (int i = 0; i < howMany; i++) {
-    buffer[i] = Wire.read();
-  }
+  for (int i = 0; i < howMany;buffer[i] = Wire.read());
 }
