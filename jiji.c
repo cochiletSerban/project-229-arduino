@@ -1,58 +1,56 @@
-// Wire Slave Receiver
-// by Nicholas Zambetti <http://www.zambetti.com>
-
-// Demonstrates use of the Wire library
-// Receives data as an I2C/TWI slave device
-// Refer to the "Wire Master Writer" example for use with this
-
-// Created 29 March 2006
-
-// This example code is in the public domain.
-
+#include <RGBLed.h>
 
 #include <Wire.h>
 
-bool goClub = false;
+bool goClub = false;    // true if club mode is enabled
 
+// holds values for the roof rgb strip
 struct Roof {
-  int red;
-  int green;
-  int blue;
-  int brightness;
-  int anim;
+    int red;
+    int green;
+    int blue;
+    int brightness;
+    int anim;
 };
-
 struct Roof roof;
 
-   
-int mode = 0;
-int wg = 0;
+
+int mode = 0; // determins the mode
+int wg = 0;   // holds values for wall stirps
 int wb = 0;
 
-const int wgPin = 9;
-const int wbPin = 10;
+const int wgPin = 3;    // wall stips pins
+const int wbPin = 6;
 
-const int maxlength = 8;
-//chage to rgb lib
-const int roofRedPin = 13;
-const int roofGreenPin = 14;
-const int roofBluePin = 15;
-unsigned char buffer[maxlength];
-unsigned char printable[maxlength];
-int received = 0;
+int analogPin = 0;  // pin for reading msgeq7 data
+int strobePin = 5;  // strobe pin for msgeq7
+int resetPin = 4;   // reset pin for msgeq7
+
+RGBLed roofLed(9, 10, 11, COMMON_CATHODE);  // pins for rgb roof strip
+
+const int maxlength = 8;    // max len of ic2 recived data
+unsigned char buffer[maxlength];    // i2c recive buffer
+unsigned char printable[maxlength]; // used to copy the data form ^
+int received = 0;   // used to determine how many bytes were received
+
+int spectrumValue[7];   // buffer for msgeq7 data
+int filter = 110;   // msgeq7 noise filter
 
 void setup() {
-  Wire.begin(8);                // join i2c bus with address #8
-  Wire.onReceive(receiveEvent); // register event
-  Serial.begin(9600);           // start serial for output
-  pinMode(wgPin, OUTPUT);
-  pinMode(wbPin, OUTPUT);
-  pinMode(roofRedPin, OUTPUT);
-  pinMode(roofGreenPin, OUTPUT);
-  pinMode(roofBluePin, OUTPUT);
+    Wire.begin(8); // join i2c bus with address #8
+    Wire.onReceive(receiveEvent); // register event
+
+    Serial.begin(9600); // start serial for output
+
+    pinMode(wgPin, OUTPUT);     // defines pin wgPin as Output for wgStrip
+    pinMode(wbPin, OUTPUT);     // defines pin wbPin as Output for wbStrip
+    pinMode(analogPin, INPUT);  // defines analog pin A0 as an Input for msgeq7
+    pinMode(strobePin, OUTPUT); // defines strobe pin 2 as Output for msgeq7
+    pinMode(resetPin, OUTPUT);  // defines reset pin 3 as Output for msgeq7
 }
 
-void printState(){
+// prints state values used for debuging
+void printState() {
     Serial.print(mode);
     Serial.print(" ");
     Serial.print(roof.red);
@@ -71,6 +69,7 @@ void printState(){
     Serial.println("");
 }
 
+// copies data form buffer to variabiles and stuctures
 void setStateToVars() {
     memcpy(printable, buffer, maxlength);
     mode = printable[0];
@@ -83,48 +82,91 @@ void setStateToVars() {
     wb = printable[7];
 }
 
+// determins the mode and cleans the curent mode on mode switch
 void setMode() {
-    if (mode == 2) goClub = true;
-    if (mode != 2) goClub = false;
+    if (mode == 2) {
+        cleanState();
+        goClub = true;
+    }
+    if (mode != 2) {
+        goClub = false;
+        cleanState();
+    }
     if (mode == 1) {
-      writeToStrips();
+        writeToStrips();
+    }
+    if (mode == 0) {
+        cleanState();
     }
 }
 
-void loop() {
-  
-  if (received > 0) {
-      setStateToVars();
-      //printState();
-      setMode();
-      received = 0;
-  }
-
-  if (goClub) {
-    Serial.print("party ");
-  }
-
-  
+// resets curent state
+void cleanState() {
+    roofLed.brightness(255, 255, 255, 0);
+    analogWrite(wgPin, 0);
+    analogWrite(wbPin, 0);
 }
 
+void loop() {
+
+    if (received > 0) {
+        setStateToVars();
+        printState(); // debug
+        setMode();
+        received = 0;
+    }
+
+    // club mode, read form msgeq filter map and write to leds
+    if (goClub) {
+        digitalWrite(resetPin, HIGH);
+        digitalWrite(resetPin, LOW);
+
+        for (int i = 0; i < 7; i++) {
+            digitalWrite(strobePin, LOW);
+
+            spectrumValue[i] = analogRead(analogPin);
+
+            //  noise filtering
+            if (spectrumValue[i] < filter) spectrumValue[i] = 0;
+
+            // misc tweaks
+            if (i > 2 && i < 5) spectrumValue[i] = max(spectrumValue[i] - 10, 0);
+            if (i == 5) spectrumValue[i] = max(spectrumValue[5] - 100, 0) * 1.2;
+            if (i == 6) spectrumValue[i] = max(spectrumValue[6] - 120, 0) * 2;
+
+            //    Serial.print(spectrumValue[i]);
+            //    Serial.print(" ");
+
+            spectrumValue[i] = map(spectrumValue[i], 0, 1023, 0, 255);
+            digitalWrite(strobePin, HIGH);
+        }
+        //    Serial.println();
+        roofLed.setColor(spectrumValue[1], spectrumValue[0], (spectrumValue[1] + spectrumValue[0]) / 2); // bass
+        analogWrite(wbPin, spectrumValue[4]); //med/voice
+        analogWrite(wbPin, spectrumValue[2]); //med/voice
+        analogWrite(wbPin, spectrumValue[3]); //med/voice
+        analogWrite(wgPin, spectrumValue[5]); //hh & symbols
+        analogWrite(wgPin, spectrumValue[6]); //hh & symbols
+    }
+
+}
+
+// sets values to led strips
 void writeToStrips() {
-  Serial.println("writing to strips");
-  printState();
-  analogWrite(wgPin, wg);
-  analogWrite(wbPin, wb);
-  /// change to rgb lib
-  analogWrite(roofRedPin , roof.red);
-  analogWrite(roofGreenPin, roof.green) ; 
-  analogWrite(roofBluePin, roof.blue);
+    Serial.println("writing to strips"); // debug
+    printState();
+    analogWrite(wgPin, wg);
+    analogWrite(wbPin, wb);
+    roofLed.brightness(roof.red, roof.green, roof.blue, roof.brightness);
 }
 
 // function that executes whenever data is received from master
 // this function is registered as an event, see setup()
 void receiveEvent(int howMany) {
-  received = howMany;
-  memset(buffer, 0, maxlength);
+    received = howMany;
+    memset(buffer, 0, maxlength);
 
-  for (int i = 0; i < howMany; i++) {
-    buffer[i] = Wire.read();
-  }
+    for (int i = 0; i < howMany; i++) {
+        buffer[i] = Wire.read();
+    }
 }
