@@ -3,6 +3,7 @@
 #include <Wire.h>
 
 bool goClub = false;    // true if club mode is enabled
+bool goLobby = false;
 
 // holds values for the roof rgb strip
 struct Roof {
@@ -16,6 +17,7 @@ struct Roof roof;
 
 
 int mode = 0; // determins the mode
+int prevMode = 0;
 int wg = 0;   // holds values for wall stirps
 int wb = 0;
 
@@ -27,6 +29,9 @@ int strobePin = 5;  // strobe pin for msgeq7
 int resetPin = 4;   // reset pin for msgeq7
 
 RGBLed roofLed(9, 10, 11, COMMON_CATHODE);  // pins for rgb roof strip
+
+int brightness = 0;    // how bright the LED is
+int fadeAmount = 1;  
 
 const int maxlength = 8;    // max len of ic2 recived data
 unsigned char buffer[maxlength];    // i2c recive buffer
@@ -72,6 +77,7 @@ void printState() {
 // copies data form buffer to variabiles and stuctures
 void setStateToVars() {
     memcpy(printable, buffer, maxlength);
+    prevMode = mode;
     mode = printable[0];
     roof.red = printable[1];
     roof.green = printable[2];
@@ -82,6 +88,25 @@ void setStateToVars() {
     wb = printable[7];
 }
 
+void lobbyAnimation() {
+
+  roofLed.setColor(0, 50, 0);
+  delay(800);
+  analogWrite(wbPin, 50);
+  delay(800);
+  analogWrite(wgPin, 50);
+  delay(800);
+  
+  analogWrite(wgPin, 0);
+  delay(800);
+  analogWrite(wbPin, 0);
+  delay(800);
+  roofLed.off();
+  delay(800);
+  
+
+}
+
 // determins the mode and cleans the curent mode on mode switch
 void setMode() {
     if (mode == 2) {
@@ -90,13 +115,21 @@ void setMode() {
     }
     if (mode != 2) {
         goClub = false;
-        cleanState();
+        //cleanState();
     }
     if (mode == 1) {
+        if (prevMode == 2) cleanState();
         writeToStrips();
     }
     if (mode == 0) {
         cleanState();
+    }
+    if (mode == 3) {
+      cleanState();
+      goLobby = true;
+    }
+    if (mode != 3) {
+      goLobby = false;
     }
 }
 
@@ -134,19 +167,24 @@ void loop() {
             if (i == 5) spectrumValue[i] = max(spectrumValue[5] - 100, 0) * 1.2;
             if (i == 6) spectrumValue[i] = max(spectrumValue[6] - 120, 0) * 2;
 
-            //    Serial.print(spectrumValue[i]);
-            //    Serial.print(" ");
+           
 
             spectrumValue[i] = map(spectrumValue[i], 0, 1023, 0, 255);
+           // Serial.print(spectrumValue[i]);
+           // Serial.print(" ");
             digitalWrite(strobePin, HIGH);
         }
-        //    Serial.println();
+           // Serial.println();
         roofLed.setColor(spectrumValue[1], spectrumValue[0], (spectrumValue[1] + spectrumValue[0]) / 2); // bass
         analogWrite(wbPin, spectrumValue[4]); //med/voice
         analogWrite(wbPin, spectrumValue[2]); //med/voice
         analogWrite(wbPin, spectrumValue[3]); //med/voice
         analogWrite(wgPin, spectrumValue[5]); //hh & symbols
         analogWrite(wgPin, spectrumValue[6]); //hh & symbols
+    }
+
+    if (goLobby) {
+      lobbyAnimation();
     }
 
 }
